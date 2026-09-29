@@ -290,7 +290,7 @@ document.querySelectorAll('.tab').forEach(button => {
     render();
   };
 });
-
+  
 <script>
 document.addEventListener('click', async e => {
   if (!e.target.classList.contains('delete')) return;
@@ -315,6 +315,16 @@ document.addEventListener('click', async e => {
     .from('levels')
     .delete()
     .eq('id', id);
+
+  if (error) {
+    console.error(error);
+    alert('Nie udało się usunąć levela: ' + error.message);
+    return;
+  }
+
+  await loadLevels();
+});
+</script>
 
   if (error) {
     console.error(error);
