@@ -291,17 +291,25 @@ document.querySelectorAll('.tab').forEach(button => {
   };
 });
 
+<script>
 document.addEventListener('click', async e => {
   if (!e.target.classList.contains('delete')) return;
   if (!loggedIn) return;
 
   const id = e.target.dataset.id;
-  const level = levels.find(x => x.id === id);
 
-  if (!level) return;
+  const level = levels.find(
+    x => String(x.id) === String(id)
+  );
 
-  if (!confirm('Usunąć level „' + level.name + '”?'))
+  if (!level) {
+    alert('Nie znaleziono tego levela.');
     return;
+  }
+
+  if (!confirm('Usunąć level „' + level.name + '”?')) {
+    return;
+  }
 
   const { error } = await db
     .from('levels')
@@ -309,14 +317,11 @@ document.addEventListener('click', async e => {
     .eq('id', id);
 
   if (error) {
-    alert('Nie udało się usunąć levela.');
     console.error(error);
+    alert('Nie udało się usunąć levela: ' + error.message);
     return;
   }
 
   await loadLevels();
 });
-
-checkUser();
-loadLevels();
 </script>
