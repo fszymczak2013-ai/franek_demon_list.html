@@ -291,7 +291,6 @@ document.querySelectorAll('.tab').forEach(button => {
   };
 });
   
-<script>
 document.addEventListener('click', async e => {
   if (!e.target.classList.contains('delete')) return;
   if (!loggedIn) return;
@@ -324,7 +323,6 @@ document.addEventListener('click', async e => {
 
   await loadLevels();
 });
-</script>
 
   if (error) {
     console.error(error);
