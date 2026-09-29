@@ -33,28 +33,290 @@
 </div><div class="formactions"><button id="save" class="add">Dodaj do listy</button></div><div id="msg" class="small"></div></div></div>
 <footer>Franek Demon List • wersja demonstracyjna • rekordy wymagają proofa</footer>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-const defaults=[
-{name:'Bloodbath',author:'Riot',rank:1,record:100,type:'extreme',proof:'#'},
-{name:'Slaughterhouse',author:'Icedcave',rank:2,record:94,type:'extreme',proof:'#'},
-{name:'Acheron',author:'Ryamu',rank:3,record:87,type:'extreme',proof:'#'},
-{name:'Tidal Wave',author:'OniLink',rank:4,record:82,type:'extreme',proof:'#'},
-{name:'Sonic Wave',author:'Cyclic',rank:5,record:76,type:'extreme',proof:'#'},
-{name:'Artificial Ascent',author:'ViPriN',rank:6,record:71,type:'extreme',proof:'#'},
-{name:'Cataclysm',author:'GgB0y',rank:7,record:68,type:'extreme',proof:'#'},
-{name:'Nine Circles',author:'Zobros',rank:8,record:63,type:'extreme',proof:'#'},
-{name:'Digital Descent',author:'JonathanGD',rank:9,record:55,type:'extreme',proof:'#'},
-{name:'Hypersonic',author:'Viprin',rank:10,record:49,type:'extreme',proof:'#'}];
-let levels=JSON.parse(localStorage.getItem('franekLevels')||'null')||defaults;levels=levels.map((x,i)=>({...x,id:x.id||('lvl_'+i)}));
-let filter='all';
-function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function saveData(){localStorage.setItem('franekLevels',JSON.stringify(levels))}
-function render(){const q=document.getElementById('q').value.toLowerCase();let arr=levels.filter(x=>(filter==='all'||x.type===filter)&&(`${x.name} ${x.author} ${x.verifier||''}`.toLowerCase().includes(q)));const sort=document.getElementById('sort').value;if(sort==='name')arr.sort((a,b)=>a.name.localeCompare(b.name));else if(sort==='record')arr.sort((a,b)=>b.record-a.record);else arr.sort((a,b)=>a.rank-b.rank);document.getElementById('list').innerHTML=arr.length?arr.map(x=>`<article class="card ${x.cover?'':'no-cover'}" style="--cover:url('${esc(x.cover||'')}')"><div class="rank">#${x.rank}</div><div><div class="level">${esc(x.name)}</div><div class="meta">Autor: ${esc(x.author)}<br>Zweryfikował: ${esc(x.verifier||'Nie podano')}</div></div><div class="record"><div class="percent">${x.record}%</div><a class="proof" href="${esc(x.proof||'#')}" target="_blank">proof →</a><br><button class="delete" data-id="${x.id}">Usuń level</button></div></article>`).join(''):'<div class="empty">Nie znaleziono leveli 😭</div>'}
-const modal=document.getElementById('modal');
-document.getElementById('addBtn').onclick=()=>{modal.classList.remove('hidden');document.getElementById('name').focus()};
-document.getElementById('close').onclick=()=>modal.classList.add('hidden');
-modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.add('hidden')});
-document.getElementById('save').onclick=()=>{const name=document.getElementById('name').value.trim(),author=document.getElementById('author').value.trim(),verifier=document.getElementById('verifier').value.trim(),rank=Number(document.getElementById('rank').value),record=Number(document.getElementById('record').value),type=document.getElementById('type').value,proof=document.getElementById('proof').value.trim()||'#',file=document.getElementById('cover').files[0];const msg=document.getElementById('msg');if(!name||!author||!verifier||!rank||record<0||record>100){msg.textContent='Uzupełnij nazwę, autora, osobę weryfikującą, pozycję i poprawny rekord';return}const addLevel=cover=>{levels.push({id:'lvl_'+Date.now(),name,author,verifier,rank,record,type,proof,cover:cover||''});try{saveData();render();modal.classList.add('hidden');['name','author','verifier','rank','record','proof'].forEach(id=>document.getElementById(id).value='');document.getElementById('cover').value='';msg.textContent=''}catch(e){msg.textContent='Obrazek jest za duży. Wybierz mniejsze zdjęcie.'}};if(file){if(!file.type.startsWith('image/')){msg.textContent='Wybierz plik graficzny.';return}if(file.size>3*1024*1024){msg.textContent='Obrazek jest za duży. Wybierz zdjęcie do 3 MB.';return}const reader=new FileReader();reader.onload=()=>addLevel(reader.result);reader.onerror=()=>{msg.textContent='Nie udało się wczytać obrazka.'};reader.readAsDataURL(file)}else addLevel('')};
-document.getElementById('q').addEventListener('input',render);document.getElementById('sort').addEventListener('change',render);document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');filter=b.dataset.filter;render()});render();
-document.addEventListener('click',e=>{if(!e.target.classList.contains('delete'))return;const id=e.target.dataset.id;const level=levels.find(x=>x.id===id);if(level&&confirm('Usunąć level „'+level.name+'”?')){levels=levels.filter(x=>x.id!==id);saveData();render()}});
-</script></body></html>
+const SUPABASE_URL = 'https://gcgmxlftuzzbxbftmcfg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_2RmzTbckLtUn6ZVsq7c7eA_PhkMurMl';
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let levels = [];
+let filter = 'all';
+let loggedIn = false;
+
+const addBtn = document.getElementById('addBtn');
+addBtn.style.display = 'none';
+
+const loginBtn = document.createElement('button');
+loginBtn.className = 'add';
+loginBtn.textContent = '🔐 Zaloguj';
+document.querySelector('.topinner').appendChild(loginBtn);
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[c]));
+}
+
+async function checkUser() {
+  const { data } = await db.auth.getSession();
+
+  if (data.session) {
+    loggedIn = true;
+    addBtn.style.display = 'block';
+    loginBtn.textContent = '🚪 Wyloguj';
+  } else {
+    loggedIn = false;
+    addBtn.style.display = 'none';
+    loginBtn.textContent = '🔐 Zaloguj';
+  }
+
+  render();
+}
+
+loginBtn.onclick = async () => {
+  if (loggedIn) {
+    await db.auth.signOut();
+    location.reload();
+    return;
+  }
+
+  const email = prompt('Podaj email administratora:');
+  if (!email) return;
+
+  const password = prompt('Podaj hasło:');
+  if (!password) return;
+
+  const { error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    alert('Błąd logowania: ' + error.message);
+    return;
+  }
+
+  await checkUser();
+};
+
+async function loadLevels() {
+  const { data, error } = await db
+    .from('levels')
+    .select('*')
+    .order('rank', { ascending: true });
+
+  if (error) {
+    console.error(error);
+    document.getElementById('list').innerHTML =
+      '<div class="empty">Nie udało się pobrać leveli.</div>';
+    return;
+  }
+
+  levels = data || [];
+  render();
+}
+
+function render() {
+  const q = document.getElementById('q').value.toLowerCase();
+
+  let arr = levels.filter(x =>
+    (filter === 'all' || x.type === filter) &&
+    `${x.name} ${x.author} ${x.verifier || ''}`
+      .toLowerCase()
+      .includes(q)
+  );
+
+  const sort = document.getElementById('sort').value;
+
+  if (sort === 'name')
+    arr.sort((a,b) => a.name.localeCompare(b.name));
+  else if (sort === 'record')
+    arr.sort((a,b) => (b.record || 0) - (a.record || 0));
+  else
+    arr.sort((a,b) => (a.rank || 9999) - (b.rank || 9999));
+
+  document.getElementById('list').innerHTML = arr.length
+    ? arr.map(x => `
+      <article class="card ${x.cover ? '' : 'no-cover'}"
+        style="--cover:url('${esc(x.cover || '')}')">
+
+        <div class="rank">#${x.rank}</div>
+
+        <div>
+          <div class="level">${esc(x.name)}</div>
+
+          <div class="meta">
+            Autor: ${esc(x.author)}<br>
+            Zweryfikował: ${esc(x.verifier || 'Nie podano')}
+          </div>
+        </div>
+
+        <div class="record">
+          <div class="percent">${x.record || 0}%</div>
+
+          <a class="proof"
+             href="${esc(x.proof || '#')}"
+             target="_blank">
+             proof →
+          </a>
+
+          ${loggedIn ? `
+            <br>
+            <button class="delete" data-id="${x.id}">
+              Usuń level
+            </button>
+          ` : ''}
+        </div>
+      </article>
+    `).join('')
+    : '<div class="empty">Nie znaleziono leveli 😭</div>';
+}
+
+const modal = document.getElementById('modal');
+
+addBtn.onclick = () => {
+  if (!loggedIn) return;
+  modal.classList.remove('hidden');
+  document.getElementById('name').focus();
+};
+
+document.getElementById('close').onclick = () =>
+  modal.classList.add('hidden');
+
+modal.addEventListener('click', e => {
+  if (e.target === modal)
+    modal.classList.add('hidden');
+});
+
+document.getElementById('save').onclick = async () => {
+  if (!loggedIn) {
+    alert('Musisz być zalogowany jako administrator.');
+    return;
+  }
+
+  const name = document.getElementById('name').value.trim();
+  const author = document.getElementById('author').value.trim();
+  const verifier = document.getElementById('verifier').value.trim();
+  const rank = Number(document.getElementById('rank').value);
+  const record = Number(document.getElementById('record').value);
+  const type = document.getElementById('type').value;
+  const proof = document.getElementById('proof').value.trim() || '#';
+  const file = document.getElementById('cover').files[0];
+  const msg = document.getElementById('msg');
+
+  if (!name || !author || !verifier || !rank ||
+      record < 0 || record > 100) {
+    msg.textContent =
+      'Uzupełnij nazwę, autora, osobę weryfikującą, pozycję i rekord.';
+    return;
+  }
+
+  const addToDatabase = async (cover) => {
+    const { error } = await db
+      .from('levels')
+      .insert({
+        name,
+        author,
+        verifier,
+        rank,
+        record,
+        type,
+        proof,
+        cover: cover || ''
+      });
+
+    if (error) {
+      console.error(error);
+      msg.textContent = 'Nie udało się dodać levela.';
+      return;
+    }
+
+    modal.classList.add('hidden');
+
+    ['name','author','verifier','rank','record','proof']
+      .forEach(id => document.getElementById(id).value = '');
+
+    document.getElementById('cover').value = '';
+
+    await loadLevels();
+  };
+
+  if (file) {
+    if (!file.type.startsWith('image/')) {
+      msg.textContent = 'Wybierz plik graficzny.';
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      msg.textContent = 'Obrazek może mieć maksymalnie 3 MB.';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => addToDatabase(reader.result);
+
+    reader.onerror = () => {
+      msg.textContent = 'Nie udało się wczytać obrazka.';
+    };
+
+    reader.readAsDataURL(file);
+  } else {
+    await addToDatabase('');
+  }
+};
+
+document.getElementById('q')
+  .addEventListener('input', render);
+
+document.getElementById('sort')
+  .addEventListener('change', render);
+
+document.querySelectorAll('.tab').forEach(button => {
+  if (button.id === 'addBtn') return;
+
+  button.onclick = () => {
+    document.querySelectorAll('.tab')
+      .forEach(x => x.classList.remove('active'));
+
+    button.classList.add('active');
+    filter = button.dataset.filter;
+    render();
+  };
+});
+
+document.addEventListener('click', async e => {
+  if (!e.target.classList.contains('delete')) return;
+  if (!loggedIn) return;
+
+  const id = e.target.dataset.id;
+  const level = levels.find(x => x.id === id);
+
+  if (!level) return;
+
+  if (!confirm('Usunąć level „' + level.name + '”?'))
+    return;
+
+  const { error } = await db
+    .from('levels')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    alert('Nie udało się usunąć levela.');
+    console.error(error);
+    return;
+  }
+
+  await loadLevels();
+});
+
+checkUser();
+loadLevels();
+</script>
